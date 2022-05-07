@@ -1,3 +1,30 @@
+# 目的
+ネットワークストレージ（NAS）を利用し、PCの定時バックアップを構築するものになります。
+
+# 前提
+・NAS本体及びHDDは実装、初期設定済みである
+
+・今回は可用性を考慮し、RAID5で構築
+
+また、下記の環境設定は必ず行うこと。
+
+## 基本構築
+
+1．メインPCへ静的IP割り当て
+
+2．NASへ静的IP割り当て
+
+3．NASにてSMBサービスを有効にする
+
+## セキュア環境構築（NAS）
+
+1．ホワイトリスト方式を設定し、メインPCの静的IPをホワイトリスト登録（メインPC以外接続拒否）
+
+2．内部FWにてStaticルールを設定。メインPCの静的IPのみTCP/UDP、全ポート有効。
+
+3．HTTPS接続有効化、HTTP接続リダイレクト設定有効化、HTTP及びHTTPSポートを任意のポートへ変更
+
+# バッチファイル
 ```Batch
 @echo off
 
@@ -16,19 +43,25 @@ set crdir=<カレントフォルダの絶対パスを指定>
 set sync=<同期までの日数を指定>
 
 : 各ネットワークドライブの設定
-: //NAS IP
+: NAS IP
 : set nasip=192.168.254.254など
 set nasip=<NASのIPアドレスを指定>
 
-: //NAS Account
+: NAS Account
 : set nasid=hoge
 : set naspw=hogehogeなど
 set nasid=<NASの管理者アカウントを指定>
 set naspw=<NASの管理者パスワードを指定>
 
-: //NAS Drive Symbol
+: NAS Drive Symbol
 : set nasadmin=Q:など
 set nasadmin=<PC上に追加するネットワークドライブシンボルを指定>
+
+: robocopy設定
+set rcRetry=<同期失敗時の再試行回数>
+set rcWait=<同期失敗時の待機時間>
+set rcSrcPath=<同期元フォルダの絶対パス>
+set rcDestPath=<同期先フォルダの絶対パス>
 
 : -------------同期時期検出-------------
 : フォルダ検出（tmpフォルダとlogフォルダがなければ作成）
@@ -43,8 +76,8 @@ set SYNFile=synupdate
 set dirComd="DIR %SYNPath%%SYNFile% | findstr %SYNFile%"
 
 : 同期更新ファイルタイムスタンプ
-FOR /f "tokens=1,2" %%a IN ('%dirComd%') DO (
-	SET timeStamp=%%a %%b
+for /f "tokens=1,2" %%a in ('%dirComd%') do (
+	set timeStamp=%%a %%b
 )
 
 : 現在の日時を数値化
@@ -107,15 +140,15 @@ net use %nasadmin% \\%nasip%\Admin %naspw% /user:%nasid% >> %crdir%\log\NetworkW
 
 : 同期実行分岐
 if %verifyDate% geq %sync% (
-     >> %crdir%\log\NetworkWorkingLog_%TS%.log
+    robocopy %rcSrcPath% %rcDestPath% /mir /r:%rcRetry% /w:%rcWait% /fft /np >> %crdir%\log\NetworkWorkingLog_%TS%.log
     : 同期更新ファイル出力
     type nul > %crdir%\tmp\synupdate >> %crdir%\log\NetworkWorkingLog_%TS%.log
 )
-GOTO BATEXIT
+goto BATEXIT
 
 :NASADMINDEL
 net use %nasadmin% /delete >> %crdir%\log\NetworkWorkingLog_%TS%.log
-GOTO BATEXIT
+goto BATEXIT
 
 :BATEXIT
 : バッチ終了処理、結果ログ出力
@@ -158,3 +191,48 @@ set /a C2=C1-C
 if %C2% LSS 0 set /a S2=S2-1,C2=C2+100
 if %C2% LSS 10 set C2=0%C2%
 ```
+
+# フローチャート
+![](https://github.com/konatofu/NASDetectedTask/blob/fb8af753b362413c4a37a0da71133da132cf9f9d/image/flow.png)
+
+# 動作説明 
+## 何故ネットワークドライブを検出して処理するのか？
+Windowsの特性上、ネットワークドライブへの疎通が取れず切断されている場合、何らかのアクセス（バックグラウンドアクセス含む）があった場合、疎通を取ろうとし、対象までのリーチャビリティが無いと判断するまで、同処理をリトライしようとします。
+
+その際、OSが応答なしと判断するまでエクスプローラ上で一時的にスタックし、ユーザビリティが低下します。
+
+故に、本バッチ実行時に対象への疎通を確認し、疎通NGであった場合は、ネットワークドライブを削除するといった手法を取っています。
+
+## 同期処理の手法について
+目的の達成に必要な手法は数多ありますが、今回はWindows標準装備である**robocopy**を採用しています。
+
+本コマンドは、Windows7以降搭載されているコマンドである為、Windows7より前のOSでは動作しません。
+
+# 使用方法
+1．本バッチファイル内の**初期設定**部分を、自環境に合うよう書き換えて保存してください。
+
+2．タスクスケジュールへ新規タスクを追加し、**動作トリガーをログイン時にし、本バッチファイルを実行ファイルとして登録**してください。
+
+# Tips
+バッチファイル動作時のコマンドプロンプトウィンドウが、一瞬表示されるのが嫌な方は以下を試してください。
+
+```VB
+Set sh = CreateObject("WScript.Shell")
+sh.Run "<バッチファイルの絶対パス>",0,False
+```
+
+テキストファイルに上記コードを貼り付けて、拡張子(.vbs)にて保存してください。
+
+保存したこのスクリプトを、バッチファイルの代わりにタスクスケジュールに登録してください。
+
+# 注意事項
+本バッチはrobocopyコマンドを利用しています。
+
+`rcSrcPath`と`rcDestPath`へ入力する際は、**同期元**と**同期先**を絶対に間違わないよう注意してください。
+
+### **同期元と同期先のフォルダパスを間違えると、同期元のデータが全て消えてしまいます**
+
+# 免責事項
+本バッチを利用して生じた、如何なる不都合、不具合に関しては一切責任を負いません。
+
+本バッチを実行する際は、しっかり確認した上で実行してください。
