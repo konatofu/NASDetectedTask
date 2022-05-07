@@ -15,19 +15,25 @@ set crdir=<カレントフォルダの絶対パスを指定>
 set sync=<同期までの日数を指定>
 
 : 各ネットワークドライブの設定
-: //NAS IP
+: NAS IP
 : set nasip=192.168.254.254など
 set nasip=<NASのIPアドレスを指定>
 
-: //NAS Account
+: NAS Account
 : set nasid=hoge
 : set naspw=hogehogeなど
 set nasid=<NASの管理者アカウントを指定>
 set naspw=<NASの管理者パスワードを指定>
 
-: //NAS Drive Symbol
+: NAS Drive Symbol
 : set nasadmin=Q:など
 set nasadmin=<PC上に追加するネットワークドライブシンボルを指定>
+
+: robocopy設定
+set rcRetry=<同期失敗時の再試行回数>
+set rcWait=<同期失敗時の待機時間>
+set rcSrcPath=<同期元フォルダの絶対パス>
+set rcDestPath=<同期先フォルダの絶対パス>
 
 : -------------同期時期検出-------------
 : フォルダ検出（tmpフォルダとlogフォルダがなければ作成）
@@ -42,8 +48,8 @@ set SYNFile=synupdate
 set dirComd="DIR %SYNPath%%SYNFile% | findstr %SYNFile%"
 
 : 同期更新ファイルタイムスタンプ
-FOR /f "tokens=1,2" %%a IN ('%dirComd%') DO (
-	SET timeStamp=%%a %%b
+for /f "tokens=1,2" %%a in ('%dirComd%') do (
+	set timeStamp=%%a %%b
 )
 
 : 現在の日時を数値化
@@ -106,15 +112,15 @@ net use %nasadmin% \\%nasip%\Admin %naspw% /user:%nasid% >> %crdir%\log\NetworkW
 
 : 同期実行分岐
 if %verifyDate% geq %sync% (
-     >> %crdir%\log\NetworkWorkingLog_%TS%.log
+    robocopy %rcSrcPath% %rcDestPath% /mir /r:%rcRetry% /w:%rcWait% /fft /np >> %crdir%\log\NetworkWorkingLog_%TS%.log
     : 同期更新ファイル出力
     type nul > %crdir%\tmp\synupdate >> %crdir%\log\NetworkWorkingLog_%TS%.log
 )
-GOTO BATEXIT
+goto BATEXIT
 
 :NASADMINDEL
 net use %nasadmin% /delete >> %crdir%\log\NetworkWorkingLog_%TS%.log
-GOTO BATEXIT
+goto BATEXIT
 
 :BATEXIT
 : バッチ終了処理、結果ログ出力
