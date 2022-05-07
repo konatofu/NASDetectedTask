@@ -140,7 +140,7 @@ if %ERRORLEVEL%==0 GOTO NASADMIN
 if %ERRORLEVEL%==1 GOTO NASADMINDEL
 
 :NASADMIN
-net use %nasadmin% \\%nasip%nasdir %naspw% /user:%nasid% >> %crdir%\log\NetworkWorkingLog_%TS%.log
+net use %nasadmin% \\%nasip%nasdir% %naspw% /user:%nasid% >> %crdir%\log\NetworkWorkingLog_%TS%.log
 
 : 同期実行分岐
 if %verifyDate% geq %sync% (
