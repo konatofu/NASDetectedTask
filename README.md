@@ -47,6 +47,10 @@ set sync=<同期までの日数を指定>
 : set nasip=192.168.254.254など
 set nasip=<NASのIPアドレスを指定>
 
+: NAS Directory
+: set nasdir=\hogeなど
+set nasdir=<ネットワークドライブとして追加するNASのディレクトリ>
+
 : NAS Account
 : set nasid=hoge
 : set naspw=hogehogeなど
@@ -136,7 +140,7 @@ if %ERRORLEVEL%==0 GOTO NASADMIN
 if %ERRORLEVEL%==1 GOTO NASADMINDEL
 
 :NASADMIN
-net use %nasadmin% \\%nasip%\Admin %naspw% /user:%nasid% >> %crdir%\log\NetworkWorkingLog_%TS%.log
+net use %nasadmin% \\%nasip%nasdir %naspw% /user:%nasid% >> %crdir%\log\NetworkWorkingLog_%TS%.log
 
 : 同期実行分岐
 if %verifyDate% geq %sync% (
